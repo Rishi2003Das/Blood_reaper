@@ -133,4 +133,6 @@ Whether he/she donated blood in March 2007	binary	1=yes 0=no	Output	0	1	1 (24%) 
 
 
 
+https://github.com/Sathwika527/Blood-Donation-Prediction/blob/main/2.Data%20Collection%20and%20Preprocessing/1.Raw%20Data%20Sources%20And%20Data%20Quality%20Report.pdf
 
+https://github.com/khaleel8096/-Blood-Donation-Forecast
