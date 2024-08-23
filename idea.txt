@@ -35,40 +35,8 @@ do this from the ease of home. At least Rs.20 to Rs.100!
 5. Donations from governments, for non profit work, from NGOs, and from hospitals through different programs.**
 
 		
-
-		1. Blood Shortage Prediction System
-
-
-
-Problem: Unpredictable blood shortages during emergencies.
-
-Solution:
-
-Data Integration: Collect historical blood demand data, inventory levels, local events, and seasonal trends from various hospitals and blood banks. This data is stored in a centralized, cloud-based database.
-
-Predictive Modeling: Develop time-series forecasting models (e.g., ARIMA, LSTM) to predict future blood demand. The model would account for trends, seasonality, and external factors like public events or weather conditions.
-
-Real-Time Monitoring: Implement dashboards that provide real-time predictions and alert blood banks of potential shortages, enabling proactive measures like organizing donation drives.
-
-Networking Algorithm: Develop algorithms to dynamically allocate resources between blood banks, prioritizing those with the highest predicted shortages.
-
-
-		2. Donor Eligibility and Availability Prediction
-
-
-
-Problem: Inconsistent donor turnout due to health or scheduling issues.
-
-Solution:
-Donor Data Management: Maintain a secure, encrypted database with donor health records, past donation patterns, and lifestyle data. Use machine learning models to predict donor eligibility and likelihood of participation in upcoming drives.
-
-Clustering and Segmentation: Use clustering algorithms to group donors based on availability, proximity to donation centers, and eligibility. This helps in targeted communication and optimized drive planning.
-
-Personalized Notifications: Implement a mobile app that sends personalized notifications to eligible donors about nearby donation drives, ensuring a steady flow of donors.
-
-
-
-		3. Emergency Blood Demand Prediction
+Segmented problem statements and solution for them:-
+		1. Emergency Blood Demand Prediction
 
 
 Problem: Sudden spikes in blood demand during accidents or disasters.
@@ -82,7 +50,7 @@ Collaboration Platform: Create a platform for blood banks and hospitals to colla
 
 
 
-		4. Personalized Donor Matching System
+		2. Personalized Donor Matching System
 
 
 Problem: Difficulty in finding compatible blood donors quickly.
@@ -98,7 +66,7 @@ Automated Outreach: Once a match is found, the system automatically contacts the
 
 
 
-		7. Predictive Insights for Strategic Planning
+		3. Predictive Insights for Strategic Planning
 
 
 Problem: Lack of predictive insights to guide long-term planning and decision-making.
