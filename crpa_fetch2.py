@@ -4,13 +4,24 @@ import networkx as nx
 import requests
 import random
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-#import matplotlib.pyplot as plt
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class BloodSupplyChainOptimizer:
+    def load_and_print_all_data(self):
+        """
+        Load all data from the Firebase Realtime Database and print it.
+        """
+        ref = db.reference('/')
+        data = ref.get()
+
+        # Print the entire data structure
+        logging.info("Full Firebase data:")
+        logging.info(data)
+
+        return data
+
     def __init__(self, ors_api_key):
         self.graph = nx.Graph()
         self.ors_api_key = ors_api_key
@@ -23,21 +34,20 @@ class BloodSupplyChainOptimizer:
 
     def fetch_and_add_locations(self, location_type='hospital'):
         """
-        Fetch locations of a specific type (e.g., hospitals or blood banks) from Firebase and add them to the graph.
+        Fetch locations of a specific type (e.g., hospitals, labs, or blood banks) from Firebase and add them to the graph.
         """
         ref_path = f'/{location_type}'
+        logging.debug(f"Fetching data from Firebase path: {ref_path}")
         ref = db.reference(ref_path)
         locations = ref.get()
 
         if locations:
             logging.info(f"Fetched {len(locations)} {location_type} from Firebase.")
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(self.process_location, loc_id, loc_data, location_type) for loc_id, loc_data in locations.items()]
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logging.error(f"Error processing location: {e}")
+            for loc_id, loc_data in locations.items():
+                logging.debug(f"Processing location ID: {loc_id}, Data: {loc_data}")
+                self.process_location(loc_id, loc_data, location_type)
+        else:
+            logging.warning(f"No locations found for type: {location_type}")
 
     def process_location(self, loc_id, loc_data, location_type):
         """
@@ -45,9 +55,9 @@ class BloodSupplyChainOptimizer:
         """
         try:
             name = loc_data.get('name', 'Unknown')
-            latitude = loc_data.get('location', {}).get('lat')
-            longitude = loc_data.get('location', {}).get('lng')
+            latitude, longitude = loc_data.get('location', [None, None])
             blood_inventory = loc_data.get('blood_inventory', None)
+            logging.debug(f"Location data - Name: {name}, Latitude: {latitude}, Longitude: {longitude}, Blood Inventory: {blood_inventory}")
             if not name or latitude is None or longitude is None:
                 raise ValueError("Invalid location data")
 
@@ -73,13 +83,12 @@ class BloodSupplyChainOptimizer:
         Add edges between nodes using real distances obtained from the OpenRouteService API.
         """
         nodes = list(self.graph.nodes)
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(self.process_edge, u, v) for u in nodes for v in nodes if u != v]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logging.error(f"Error processing edge: {e}")
+        logging.debug(f"Adding edges between {len(nodes)} nodes")
+        for u in nodes:
+            for v in nodes:
+                if u != v:
+                    logging.debug(f"Processing edge between {u} and {v}")
+                    self.process_edge(u, v)
 
     def process_edge(self, u, v):
         """
@@ -103,6 +112,7 @@ class BloodSupplyChainOptimizer:
         Calculate the real distance between two points using the OpenRouteService API.
         """
         try:
+            logging.debug(f"Calculating distance between ({lat1}, {lon1}) and ({lat2}, {lon2})")
             url = f"https://api.openrouteservice.org/v2/directions/driving-car?api_key={self.ors_api_key}"
             payload = {
                 "coordinates": [[lon1, lat1], [lon2, lat2]],
@@ -115,30 +125,11 @@ class BloodSupplyChainOptimizer:
             response.raise_for_status()
             data = response.json()
             distance = data['routes'][0]['summary']['distance']
+            logging.debug(f"Distance calculated: {distance} meters")
             return distance
         except (IndexError, KeyError, requests.RequestException) as e:
             logging.error(f"Error fetching distance between coordinates ({lat1}, {lon1}) and ({lat2}, {lon2}): {e}")
             return None
-    '''
-    def visualize_graph(self):
-        """
-        Visualize the graph using matplotlib.
-        """
-        pos = nx.spring_layout(self.graph, seed=42)  # Position nodes using a layout algorithm
-
-        # Draw nodes
-        node_colors = ['lightgreen' if data['is_hospital'] else 'lightblue' for _, data in self.graph.nodes(data=True)]
-        nx.draw_networkx_nodes(self.graph, pos, node_color=node_colors, node_size=500, alpha=0.7)
-
-        # Draw edges
-        nx.draw_networkx_edges(self.graph, pos, alpha=0.5)
-
-        # Draw labels
-        labels = {node: f"{node}\n{data['blood_inventory']}" for node, data in self.graph.nodes(data=True)}
-        nx.draw_networkx_labels(self.graph, pos, labels=labels, font_size=8, verticalalignment='bottom')
-
-        plt.title("Blood Supply Chain Network")
-        plt.show()'''
 
     def print_graph(self):
         """
@@ -153,12 +144,12 @@ class BloodSupplyChainOptimizer:
             logging.info(f"Edge: ({u}, {v}), Data: {data}")
 
 # Example usage
-ors_api_key = "5b3ce3597851110001cf62484c8507e38f224cfb97cfd5794311eadd"  # Replace with your OpenRouteService API key
+ors_api_key = "5b3ce3597851110001cf62481c0c5739b5694313871d80e2e6e5dbaa"  # Replace with your OpenRouteService API key
 optimizer = BloodSupplyChainOptimizer(ors_api_key)
 
-# Fetch and add hospitals and blood banks
+# Fetch and add hospitals and labs (you can add other types as needed)
 optimizer.fetch_and_add_locations(location_type='hospital')
-optimizer.fetch_and_add_locations(location_type='blood_bank')
+optimizer.fetch_and_add_locations(location_type='lab')
 
 # Add edges between nodes using real distances
 optimizer.add_edges_between_nodes()
@@ -166,5 +157,5 @@ optimizer.add_edges_between_nodes()
 # Print the graph details
 optimizer.print_graph()
 
-# Visualize the graph
-#optimizer.visualize_graph()
+firebase_data = optimizer.load_and_print_all_data()
+print(firebase_data)
