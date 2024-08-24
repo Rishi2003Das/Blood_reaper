@@ -1,17 +1,49 @@
 import networkx as nx
 import requests
 from copy import deepcopy
-
+import os
 
 class BloodSupplyChainOptimizer:
-    def __init__(self, google_api_key):
+    def __init__(self, traffic_api_key, weather_api_key, google_places_api_key):
         self.graph = nx.Graph()
-        self.google_api_key = 'AIzaSyBiANhq0rHpdmj8pTn_4k4QBi1mWa9F8pc'
+        self.traffic_api_key = traffic_api_key
+        self.weather_api_key = weather_api_key
+        self.google_places_api_key = google_places_api_key
+
+    def fetch_and_add_locations(self, latitude, longitude, radius=5000, location_type='hospital'):
+        """
+        Fetch locations of a specific type (e.g., hospitals) and add them to the graph.
+        """
+        locations = self.search_nearby_locations(latitude, longitude, radius, location_type)
+        for loc in locations:
+            self.add_location(loc['name'], loc['latitude'], loc['longitude'], is_hospital=(location_type == 'hospital'))
+
+    def search_nearby_locations(self, latitude, longitude, radius=5000, location_type='hospital'):
+        """
+        Search for nearby locations of a specific type using the Google Places API.
+        """
+        try:
+            url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={latitude},{longitude}&radius={radius}&type={location_type}&key={self.google_places_api_key}"
+            response = requests.get(url)
+            response.raise_for_status()
+            results = response.json().get('results', [])
+            locations = []
+
+            for place in results:
+                name = place['name']
+                lat = place['geometry']['location']['lat']
+                lng = place['geometry']['location']['lng']
+                locations.append({'name': name, 'latitude': lat, 'longitude': lng})
+
+            return locations
+
+        except requests.RequestException as e:
+            print(f"Error fetching locations: {e}")
+            return []
 
     def add_location(self, name, latitude, longitude, is_hospital=False, blood_inventory=None):
         """
-        Add a location to the graph. If it's a hospital, set is_hospital=True.
-        If it's a blood bank, provide a blood_inventory dictionary.
+        Add a location to the graph.
         """
         self.graph.add_node(name, latitude=latitude, longitude=longitude, is_hospital=is_hospital,
                             blood_inventory=blood_inventory or {})
@@ -20,46 +52,54 @@ class BloodSupplyChainOptimizer:
         """
         Add a route between two locations with a base travel time.
         """
-        self.graph.add_edge(loc1, loc2, base_travel_time=base_travel_time)
+        if loc1 in self.graph.nodes and loc2 in self.graph.nodes:
+            self.graph.add_edge(loc1, loc2, base_travel_time=base_travel_time)
+        else:
+            raise ValueError(f"One or both locations {loc1} and {loc2} are not in the graph.")
 
     def update_edge_weights(self):
         """
-        Update edge weights dynamically based on real-time traffic data.
+        Update edge weights dynamically based on real-time traffic and weather data.
         """
         for u, v, data in self.graph.edges(data=True):
-            base_time = data['base_travel_time']
-            traffic_factor = self.get_real_time_traffic(u, v)
-            weather_factor = self.get_real_time_weather(u, v)
-            data['weight'] = base_time * (1 + traffic_factor + weather_factor)
+            if 'latitude' in self.graph.nodes[u] and 'latitude' in self.graph.nodes[v]:
+                base_time = data['base_travel_time']
+                traffic_factor = self.get_real_time_traffic(u, v)
+                weather_factor = self.get_real_time_weather(u, v)
+                data['weight'] = base_time * (1 + traffic_factor + weather_factor)
+            else:
+                print(f"Skipping edge ({u}, {v}) due to missing latitude/longitude data.")
 
     def get_real_time_traffic(self, loc1, loc2):
         """
-        Fetch real-time traffic data between two locations using Google Maps API.
+        Fetch real-time traffic data between two locations.
         """
         try:
             origin = f"{self.graph.nodes[loc1]['latitude']},{self.graph.nodes[loc1]['longitude']}"
             destination = f"{self.graph.nodes[loc2]['latitude']},{self.graph.nodes[loc2]['longitude']}"
-            response = requests.get(
-                f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={self.google_api_key}"
-            )
-            response.raise_for_status()
-            traffic_data = response.json()
-            # Extract traffic factor from the response
-            travel_time_in_traffic = traffic_data['routes'][0]['legs'][0]['duration_in_traffic']['value']
-            normal_travel_time = traffic_data['routes'][0]['legs'][0]['duration']['value']
-            traffic_factor = (travel_time_in_traffic - normal_travel_time) / normal_travel_time
-            return traffic_factor
-        except (requests.RequestException, IndexError, KeyError) as e:
-            print(f"Error fetching traffic data: {e}")
+            traffic_data = requests.get(
+                f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={origin}&destinations={destination}&key={self.traffic_api_key}"
+            ).json()
+            duration = traffic_data['rows'][0]['elements'][0]['duration']['value']
+            return duration / 60.0  # Convert to minutes
+        except (IndexError, KeyError, requests.RequestException) as e:
+            print(f"Error fetching traffic data between {loc1} and {loc2}: {e}")
             return 0
 
     def get_real_time_weather(self, loc1, loc2):
         """
-        Placeholder method to fetch real-time weather data.
-        This should be replaced with an actual API call to a weather service.
+        Fetch real-time weather data for a location.
         """
-        # For now, let's return 0 since Google doesn't have a direct weather API.
-        return 0
+        try:
+            latitude = self.graph.nodes[loc1]['latitude']
+            longitude = self.graph.nodes[loc1]['longitude']
+            weather_data = requests.get(
+                f"https://api.weather.com/weather?lat={latitude}&lon={longitude}&key={self.weather_api_key}"
+            ).json()
+            return weather_data.get('weather_factor', 0)  # Default to 0 if no data available
+        except (KeyError, IndexError, requests.RequestException) as e:
+            print(f"Error fetching weather data for {loc1}: {e}")
+            return 0
 
     def find_optimal_route(self, hospital_name, blood_type, required_units, urgency='regular'):
         """
@@ -140,29 +180,33 @@ class BloodSupplyChainOptimizer:
         for route in routes:
             self.add_route(**route)
 
+    def print_graph(self):
+        """
+        Print the nodes and edges of the graph with their attributes.
+        """
+        print("Nodes:")
+        for node, data in self.graph.nodes(data=True):
+            print(f"Node: {node}, Data: {data}")
 
-# Example usage:
-google_api_key = 'AIzaSyBiANhq0rHpdmj8pTn_4k4QBi1mWa9F8pc'
+        print("\nEdges:")
+        for u, v, data in self.graph.edges(data=True):
+            print(f"Edge: ({u}, {v}), Data: {data}")
 
-optimizer = BloodSupplyChainOptimizer(google_api_key)
+# Example usage
+traffic_api_key = 'YOUR_TRAFFIC_API_KEY'
+weather_api_key = 'YOUR_WEATHER_API_KEY'
+google_places_api_key = 'YOUR_GOOGLE_PLACES_API_KEY'
 
-# Add hospitals and blood banks with detailed inventory
-optimizer.add_location('Hospital A', 28.6139, 77.2090, is_hospital=True)
-optimizer.add_location('Blood Bank 1', 28.7041, 77.1025, blood_inventory={'A+': 10, 'O+': 5, 'B+': 8})
-optimizer.add_location('Blood Bank 2', 28.5355, 77.3910, blood_inventory={'A+': 3, 'O+': 2, 'B+': 4})
+optimizer = BloodSupplyChainOptimizer(traffic_api_key, weather_api_key, google_places_api_key)
 
-# Add routes
-optimizer.add_route('Hospital A', 'Blood Bank 1', base_travel_time=30)
-optimizer.add_route('Hospital A', 'Blood Bank 2', base_travel_time=45)
-optimizer.add_route('Blood Bank 1', 'Blood Bank 2', base_travel_time=20)
+# Fetch and add hospitals and blood banks
+latitude = 13.082680
+longitude = 77.2090
+optimizer.fetch_and_add_locations(latitude, longitude, location_type='hospital')
+optimizer.fetch_and_add_locations(latitude, longitude, location_type='blood_bank')
 
-# Process an immediate request from a hospital
-path, time = optimizer.process_immediate_request('Hospital A', 'A+', 5)
-if path:
-    print(f'Optimal path: {path} with travel time: {time} minutes')
-else:
-    print('No suitable blood bank found.')
+# Add routes between locations (this should be adjusted based on your specific needs)
+# Example: optimizer.add_route('Hospital A', 'Blood Bank 1', base_travel_time=30)
 
-# Restock a blood bank
-optimizer.restock_blood_bank('Blood Bank 1', 'A+', 5)
-
+# Print the graph details
+optimizer.print_graph()
