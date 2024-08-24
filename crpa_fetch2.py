@@ -9,32 +9,38 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class BloodSupplyChainOptimizer:
-    def load_and_print_all_data(self):
-        """
-        Load all data from the Firebase Realtime Database and print it.
-        """
-        ref = db.reference('/')
-        data = ref.get()
-
-        # Print the entire data structure
-        logging.info("Full Firebase data:")
-        logging.info(data)
-
-        return data
-
     def __init__(self, ors_api_key):
         self.graph = nx.Graph()
         self.ors_api_key = ors_api_key
 
         # Initialize Firebase
-        cred = credentials.Certificate('/home/anirudh/Blood_reaper/blood-reaper-f7580-firebase-adminsdk-dwyff-21dae7f7ea.json')
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': "https://blood-reaper-f7580-default-rtdb.firebaseio.com"
-        })
+        try:
+            cred = credentials.Certificate('/home/anirudh/Blood_reaper/blood-reaper-f7580-firebase-adminsdk-dwyff-21dae7f7ea.json')
+            firebase_admin.initialize_app(cred, {
+                'databaseURL': "https://blood-reaper-f7580-default-rtdb.firebaseio.com"
+            })
+            logging.info("Firebase initialized successfully.")
+        except Exception as e:
+            logging.error(f"Failed to initialize Firebase: {e}")
+            exit(1)
+
+    def load_and_print_all_data(self):
+        """
+        Load all data from the Firebase Realtime Database and print it.
+        """
+        try:
+            ref = db.reference('/')
+            data = ref.get()
+            logging.info("Full Firebase data:")
+            logging.info(data)
+            return data
+        except Exception as e:
+            logging.error(f"Error fetching data from Firebase: {e}")
+            return None
 
     def fetch_and_add_locations(self, location_type='hospital'):
         """
-        Fetch locations of a specific type (e.g., hospitals, labs, or blood banks) from Firebase and add them to the graph.
+        Fetch locations of a specific type (e.g., hospitals, labs) from Firebase and add them to the graph.
         """
         ref_path = f'/{location_type}'
         logging.debug(f"Fetching data from Firebase path: {ref_path}")
@@ -61,7 +67,7 @@ class BloodSupplyChainOptimizer:
             if not name or latitude is None or longitude is None:
                 raise ValueError("Invalid location data")
 
-            self.add_location(name, latitude, longitude, is_hospital=(location_type == 'hospitals'), blood_inventory=blood_inventory)
+            self.add_location(name, latitude, longitude, is_hospital=(location_type == 'hospital'), blood_inventory=blood_inventory)
         except ValueError as ve:
             logging.warning(f"Skipping location due to validation error: {ve}")
         except Exception as e:
@@ -157,5 +163,6 @@ optimizer.add_edges_between_nodes()
 # Print the graph details
 optimizer.print_graph()
 
+# Load and print all data from Firebase
 firebase_data = optimizer.load_and_print_all_data()
 print(firebase_data)
