@@ -182,3 +182,17 @@ Whether he/she donated blood in March 2007	binary	1=yes 0=no	Output	0	1	1 (24%) 
 https://github.com/Sathwika527/Blood-Donation-Prediction/blob/main/2.Data%20Collection%20and%20Preprocessing/1.Raw%20Data%20Sources%20And%20Data%20Quality%20Report.pdf
 
 https://github.com/khaleel8096/-Blood-Donation-Forecast
+
+
+Statistics:
+1. According to a 2022 report, India's blood shortage may be responsible for around 12,000 deaths per day. This is due to a lack of quality blood, which can be caused by a number of factors, including: 
+Demand: Increased demand during emergencies or natural disasters 
+Donations: Lower donation rates during holidays or vacations 
+Storage: Inadequate storage facilities can lead to wastage 
+Rare blood types: Challenges in maintaining an adequate supply of rare blood types 
+Blood shortages can also lead to other issues, such as: 
+Maternal deaths 
+Cancer patients: Patients may need blood during chemotherapy treatment 
+Accident victims: Victims of single-car accidents may need up to 100 units of blood 
+
+2. 
